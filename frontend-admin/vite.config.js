@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     port: 5174,
+    allowedHosts: ['image.chuyun.team'],
     proxy: {
       '/api': {
         target: 'http://localhost:8092',

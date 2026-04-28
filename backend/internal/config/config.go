@@ -10,6 +10,18 @@ func GetGoogleAPIKey() string {
 	return os.Getenv("GOOGLE_API_KEY")
 }
 
+func GetOpenAIAPIKey() string {
+	return os.Getenv("OPENAI_API_KEY")
+}
+
+func GetOpenAIBaseURL() string {
+	baseURL := os.Getenv("OPENAI_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1"
+	}
+	return baseURL
+}
+
 // GetDeepSeekAPIKey 获取 DeepSeek API Key。
 func GetDeepSeekAPIKey() string {
 	return os.Getenv("DEEPSEEK_API_KEY")

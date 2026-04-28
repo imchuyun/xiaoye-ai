@@ -152,6 +152,8 @@ func main() {
 		{
 			adminGroup.GET("/inspirations", adminapi.ListInspirations)
 			adminGroup.POST("/inspirations/:id/review", adminapi.ReviewInspiration)
+			adminGroup.GET("/models", adminapi.ListModels)
+			adminGroup.PATCH("/models/:model_id", adminapi.UpdateModel)
 		}
 	}
 

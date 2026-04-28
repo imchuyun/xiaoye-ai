@@ -77,6 +77,19 @@ func UnifiedGenerate(c *gin.Context) {
 	}
 }
 
+func resolveImageModel(requested string) string {
+	if requested != "" {
+		return requested
+	}
+
+	for _, model := range provider.ListAvailable() {
+		if model.Available && db.IsModelEnabled(model.ID) {
+			return model.ID
+		}
+	}
+	return ""
+}
+
 // handleUnifiedImageGenerate 统一接口 - 图片生成
 func handleUnifiedImageGenerate(c *gin.Context, userID uint64, req UnifiedGenerateRequest) {
 	startTime := time.Now()
@@ -103,10 +116,15 @@ func handleUnifiedImageGenerate(c *gin.Context, userID uint64, req UnifiedGenera
 		imageSize = "2K"
 	}
 
-	// 获取模型，默认使用 Nanobanana
-	model := req.Model
+	// 获取模型，默认使用当前启用且可用的图片模型
+	model := resolveImageModel(req.Model)
 	if model == "" {
-		model = ModelNanobanana
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "no available image generation model"})
+		return
+	}
+	if !db.IsModelEnabled(model) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "selected model is disabled"})
+		return
 	}
 
 	mode := "text-to-image"
@@ -519,6 +537,10 @@ func handleUnifiedEcommerceGenerate(c *gin.Context, userID uint64, req UnifiedGe
 	modelID := req.Model
 	if modelID == "" {
 		modelID = DefaultEcommerceModel
+	}
+	if !db.IsModelEnabled(modelID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "selected model is disabled"})
+		return
 	}
 
 	// 上传输入图片

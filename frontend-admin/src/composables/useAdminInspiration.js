@@ -37,10 +37,26 @@ export function useAdminInspiration() {
     return data
   }
 
+  async function listAdminModels() {
+    const { data } = await axios.get('/api/admin/models', {
+      headers: adminHeaders()
+    })
+    return data
+  }
+
+  async function updateAdminModel(modelID, payload = {}) {
+    const { data } = await axios.patch(`/api/admin/models/${encodeURIComponent(modelID)}`, payload, {
+      headers: adminHeaders()
+    })
+    return data
+  }
+
   return {
     getStoredAdminToken,
     saveAdminToken,
     listAdminInspirations,
-    reviewInspiration
+    reviewInspiration,
+    listAdminModels,
+    updateAdminModel
   }
 }

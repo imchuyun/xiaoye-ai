@@ -51,7 +51,7 @@ Open-source multi-modal AI content creation platform. Generate images and videos
 
 - Go 1.21+
 - Node.js 18+
-- MySQL 8.0+
+- MySQL 5.7.44
 - Alibaba Cloud OSS bucket (for media storage)
 - At least one AI provider API key (Google Gemini or Volcengine)
 

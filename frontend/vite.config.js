@@ -15,6 +15,7 @@ export default defineConfig({
     }
   },
   server: {
+    allowedHosts: ['image.chuyun.team'],
     proxy: {
       '/api': {
         target: 'http://localhost:8092',

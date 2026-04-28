@@ -5,6 +5,19 @@ type reviewInspirationRequest struct {
 	Note   string `json:"note" binding:"max=1000"`
 }
 
+type updateModelRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+type adminModelResponse struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Provider  string `json:"provider"`
+	Available bool   `json:"available"`
+	Enabled   bool   `json:"enabled"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
 type authorResponse struct {
 	UserID   uint64 `json:"user_id"`
 	Nickname string `json:"nickname"`

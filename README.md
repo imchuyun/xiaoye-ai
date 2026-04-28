@@ -80,7 +80,7 @@
 
 - Go 1.21+
 - Node.js 18+
-- MySQL 8.0+
+- MySQL 5.7.44
 - 阿里云 OSS 存储桶 (用于媒体存储)
 - 至少一个 AI 供应商 API Key (Google Gemini 或火山引擎)
 
@@ -160,7 +160,7 @@ npm run dev             # 启动于 http://localhost:5174
 
 ## 数据库
 
-后端使用 GORM 自动迁移，首次启动时自动创建表结构。`backend/migrations/` 目录下的 SQL 脚本供参考和手动变更使用。
+后端使用 GORM 自动迁移，首次启动时自动创建表结构。`backend/migrations/` 目录下的 SQL 脚本供参考和手动变更使用。数据库版本按 MySQL 5.7.44 兼容性维护。
 
 ## 部署
 

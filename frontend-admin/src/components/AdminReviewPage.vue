@@ -6,7 +6,8 @@ import {
   FileSearchOutlined,
   CameraOutlined,
   LockOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  SettingOutlined
 } from '@ant-design/icons-vue'
 import { useAdminInspiration } from '../composables/useAdminInspiration'
 
@@ -14,7 +15,9 @@ const {
   getStoredAdminToken,
   saveAdminToken,
   listAdminInspirations,
-  reviewInspiration
+  reviewInspiration,
+  listAdminModels,
+  updateAdminModel
 } = useAdminInspiration()
 
 const adminToken = ref(getStoredAdminToken())
@@ -28,6 +31,9 @@ const items = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+const modelItems = ref([])
+const modelLoading = ref(false)
+const activeModelID = ref('')
 
 const reviewStatus = ref('pending')
 const userID = ref('')
@@ -40,6 +46,8 @@ const moduleMenuItems = [
   { key: 'user_list', icon: () => h(UserOutlined), label: '用户列表' },
   { key: 'generation_list', icon: () => h(CameraOutlined), label: '生成列表' }
 ]
+
+moduleMenuItems.splice(1, 0, { key: 'model_config', icon: () => h(SettingOutlined), label: 'Model Config' })
 
 const reviewStatusOptions = [
   { label: '待审核', value: 'pending' },
@@ -54,12 +62,14 @@ const approvedCountInPage = computed(() => items.value.filter((item) => item.rev
 const rejectedCountInPage = computed(() => items.value.filter((item) => item.review_status === 'rejected').length)
 
 const moduleTitle = computed(() => {
+  if (activeModule.value === 'model_config') return 'Model Config'
   if (activeModule.value === 'user_list') return '用户列表'
   if (activeModule.value === 'generation_list') return '生成列表'
   return '灵感内容审核'
 })
 
 const moduleSubTitle = computed(() => {
+  if (activeModule.value === 'model_config') return 'Enable or disable frontend image models'
   if (activeModule.value === 'user_list') return '账号、状态与权限管理模块'
   if (activeModule.value === 'generation_list') return '任务、产物和状态追踪模块'
   return '发布内容审核、筛选与处理'
@@ -109,6 +119,28 @@ const verifyToken = async () => {
   })
 }
 
+const fetchModels = async () => {
+  if (!hasAdminToken.value) {
+    modelItems.value = []
+    return
+  }
+  modelLoading.value = true
+  try {
+    const data = await listAdminModels()
+    modelItems.value = data.items || []
+  } catch (error) {
+    if (isAuthError(error)) {
+      logout(false)
+      message.error('登录已失效，请重新输入 Token')
+      return
+    }
+    modelItems.value = []
+    message.error(extractError(error, '加载模型配置失败'))
+  } finally {
+    modelLoading.value = false
+  }
+}
+
 const authenticate = async () => {
   const token = loginTokenInput.value.trim()
   if (!token) {
@@ -124,6 +156,9 @@ const authenticate = async () => {
     message.success('登录成功')
     if (activeModule.value === 'inspiration_review') {
       await fetchList(true)
+    }
+    if (activeModule.value === 'model_config') {
+      await fetchModels()
     }
   } catch (error) {
     logout(false)
@@ -190,11 +225,41 @@ const onModuleSelect = async ({ key }) => {
   if (activeModule.value === 'inspiration_review' && hasAdminToken.value) {
     await fetchList(true)
   }
+  if (activeModule.value === 'model_config' && hasAdminToken.value) {
+    await fetchModels()
+  }
 }
 
 const refreshCurrent = async () => {
-  if (activeModule.value !== 'inspiration_review') return
-  await fetchList(false)
+  if (activeModule.value === 'inspiration_review') {
+    await fetchList(false)
+    return
+  }
+  if (activeModule.value === 'model_config') {
+    await fetchModels()
+  }
+}
+
+const toggleModelEnabled = async (record, checked) => {
+  if (!record?.id) return
+  const previous = record.enabled
+  record.enabled = checked
+  activeModelID.value = record.id
+  try {
+    await updateAdminModel(record.id, { enabled: checked })
+    message.success(checked ? '模型已启用' : '模型已关闭')
+    await fetchModels()
+  } catch (error) {
+    record.enabled = previous
+    if (isAuthError(error)) {
+      logout(false)
+      message.error('登录已失效，请重新输入 Token')
+      return
+    }
+    message.error(extractError(error, '更新模型配置失败'))
+  } finally {
+    activeModelID.value = ''
+  }
 }
 
 const doReview = async (item, action) => {
@@ -236,6 +301,14 @@ const columns = [
   { title: '状态', dataIndex: 'review_status', width: 120 },
   { title: '发布时间', dataIndex: 'published_at', width: 190 },
   { title: '操作', dataIndex: 'actions', width: 180 }
+]
+
+const modelColumns = [
+  { title: '模型', dataIndex: 'name' },
+  { title: 'Model ID', dataIndex: 'id' },
+  { title: 'Provider', dataIndex: 'provider', width: 140 },
+  { title: '密钥状态', dataIndex: 'available', width: 120 },
+  { title: '前台启用', dataIndex: 'enabled', width: 130 }
 ]
 
 onMounted(async () => {
@@ -446,6 +519,43 @@ onMounted(async () => {
                 @change="onPageChange"
               />
             </div>
+          </a-card>
+        </template>
+
+        <template v-else-if="activeModule === 'model_config'">
+          <a-card class="table-card">
+            <a-table
+              :columns="modelColumns"
+              :data-source="modelItems"
+              :loading="modelLoading"
+              :pagination="false"
+              :row-key="(record) => record.id"
+              size="middle"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.dataIndex === 'name'">
+                  <div class="title-cell">
+                    <strong>{{ record.name }}</strong>
+                    <span class="muted">{{ record.id }}</span>
+                  </div>
+                </template>
+                <template v-else-if="column.dataIndex === 'provider'">
+                  <a-tag>{{ record.provider }}</a-tag>
+                </template>
+                <template v-else-if="column.dataIndex === 'available'">
+                  <a-tag :color="record.available ? 'success' : 'warning'">
+                    {{ record.available ? 'Configured' : 'Missing Key' }}
+                  </a-tag>
+                </template>
+                <template v-else-if="column.dataIndex === 'enabled'">
+                  <a-switch
+                    :checked="record.enabled"
+                    :loading="activeModelID === record.id"
+                    @change="(checked) => toggleModelEnabled(record, checked)"
+                  />
+                </template>
+              </template>
+            </a-table>
           </a-card>
         </template>
 

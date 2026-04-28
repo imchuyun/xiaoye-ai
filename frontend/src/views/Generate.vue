@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { NSpin, NImage, NImageGroup, NButton, NPopover, useMessage } from 'naive-ui'
 import { useUserStore } from '../stores/user'
 import { useGenerationStore } from '../stores/generation'
+import { useModelsStore } from '../stores/models'
 import { useGenerate } from '../composables/useGenerate'
 import { useInspiration } from '../composables/useInspiration'
 import { useComposerDraftStore } from '../stores/composerDraft'
@@ -16,6 +17,7 @@ const { t } = useI18n()
 const router = useRouter()
 const userStore = useUserStore()
 const genStore = useGenerationStore()
+const modelsStore = useModelsStore()
 const composerDraftStore = useComposerDraftStore()
 const message = useMessage()
 const { generate, pollVideoTask, pollTask, stopAllPolls, uploadImageToOSS } = useGenerate()
@@ -239,6 +241,8 @@ const editImage = (imageUrl) => {
 
 const handleInpaintSubmit = async ({ originalImageUrl, maskBase64, prompt: editorPrompt, aspectRatio: aratio, imageSize: isize }) => {
   try {
+    await modelsStore.loadModels()
+    const inpaintModel = modelsStore.ensureModelId(localStorage.getItem('selectedModel') || modelsStore.defaultModelId)
     // Upload mask to OSS
     const maskOssUrl = await uploadImageToOSS(maskBase64)
 
@@ -251,7 +255,7 @@ const handleInpaintSubmit = async ({ originalImageUrl, maskBase64, prompt: edito
       images: [],
       video_url: null,
       credits_cost: 0,
-      params: { model: 'gemini-3-pro-image-preview', mode: 'inpainting', aspectRatio: aratio, imageSize: isize },
+      params: { model: inpaintModel, mode: 'inpainting', aspectRatio: aratio, imageSize: isize },
       reference_images: [originalImageUrl]
     })
     currentResults.value.push(resultItem)
@@ -264,7 +268,7 @@ const handleInpaintSubmit = async ({ originalImageUrl, maskBase64, prompt: edito
       prompt: editorPrompt,
       images: [originalImageUrl],
       mask: maskOssUrl,
-      model: 'gemini-3-pro-image-preview',
+      model: inpaintModel,
       params: {
         aspectRatio: aratio || '1:1',
         imageSize: isize || '2K'

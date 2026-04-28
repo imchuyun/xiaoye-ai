@@ -3,17 +3,21 @@ package api
 import (
 	"net/http"
 
+	"google-ai-proxy/internal/db"
 	"google-ai-proxy/internal/provider"
 
 	"github.com/gin-gonic/gin"
 )
 
-// GetModels 获取所有可用的图像生成模型列表
-// GET /api/models
+// GetModels returns enabled and currently available image generation models.
 func GetModels(c *gin.Context) {
 	models := provider.ListAvailable()
+	modelIDs := make([]string, 0, len(models))
+	for _, m := range models {
+		modelIDs = append(modelIDs, m.ID)
+	}
+	configs := db.GetModelConfigMap(modelIDs)
 
-	// 补充模型显示名称（优先使用 ModelDisplayNames 中定义的友好名称）
 	type ModelResponse struct {
 		ID          string `json:"id"`
 		Name        string `json:"name"`
@@ -24,7 +28,10 @@ func GetModels(c *gin.Context) {
 
 	result := make([]ModelResponse, 0, len(models))
 	for _, m := range models {
-		// 使用 GetModelDisplayName 获取友好名称，如果不存在则使用模型自带名称
+		if !configs[m.ID].Enabled || !m.Available {
+			continue
+		}
+
 		displayName := GetModelDisplayName(m.ID)
 		if displayName == m.ID {
 			displayName = m.Name

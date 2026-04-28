@@ -3,24 +3,26 @@ package api
 import (
 	"net/http"
 
+	"google-ai-proxy/internal/db"
 	"google-ai-proxy/internal/provider"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Model IDs
 const (
 	ModelNanobanana  = "gemini-3-pro-image-preview"
 	ModelNanobanana2 = "gemini-3.1-flash-image-preview"
 	ModelSeedream45  = "doubao-seedream-4-5"
+	ModelGPTImage2   = "gpt-image-2"
 	ModelSeedance15  = "doubao-seedance-1-5-pro-251215"
 	ModelVeo31       = "veo-3.1-generate-preview"
 )
 
 var ModelDisplayNames = map[string]string{
-	ModelNanobanana:  "🍌 Nanobanana Pro",
-	ModelNanobanana2: "🍌 Nanobanana 2",
+	ModelNanobanana:  "Nanobanana Pro",
+	ModelNanobanana2: "Nanobanana 2",
 	ModelSeedream45:  "Seedream-4.5",
+	ModelGPTImage2:   "GPT Image 2",
 	ModelSeedance15:  "Seedance-1.5",
 	ModelVeo31:       "Veo 3.1",
 }
@@ -32,8 +34,6 @@ func GetModelDisplayName(model string) string {
 	return model
 }
 
-// ImagePricingConfig image generation pricing
-// 1 CNY = 10 credits
 var ImagePricingConfig = map[string]map[string]int{
 	ModelNanobanana: {
 		"1K": 10,
@@ -50,10 +50,13 @@ var ImagePricingConfig = map[string]map[string]int{
 		"2K": 6,
 		"4K": 10,
 	},
+	ModelGPTImage2: {
+		"1K": 10,
+		"2K": 12,
+		"4K": 20,
+	},
 }
 
-// VideoPricingConfig video generation pricing.
-// Actual deduction is performed by provider.CalculateCredits.
 var VideoPricingConfig = struct {
 	BasePerSecond   map[string]int
 	AudioMultiplier float64
@@ -66,10 +69,8 @@ var VideoPricingConfig = struct {
 	AudioMultiplier: 1.2,
 }
 
-// DefaultEcommerceModel ecommerce uses image model pricing
 const DefaultEcommerceModel = ModelSeedream45
 
-// GetImageCredits returns image generation credits
 func GetImageCredits(model, size string) int {
 	modelPricing, ok := ImagePricingConfig[model]
 	if !ok {
@@ -92,47 +93,45 @@ func GetImageCredits(model, size string) int {
 	return credits
 }
 
-// GetEcommerceCredits returns ecommerce credits
 func GetEcommerceCredits(size string, count int) int {
 	creditsPerImage := GetImageCredits(DefaultEcommerceModel, size)
 	return creditsPerImage * count
 }
 
-// GetPricing returns complete pricing config
 func GetPricing(c *gin.Context) {
-	pricing := gin.H{
-		"image": []gin.H{
-			{
-				"model":       ModelNanobanana,
-				"model_name":  GetModelDisplayName(ModelNanobanana),
-				"description": "基于 Gemini 3 Pro",
-				"prices": []gin.H{
-					{"size": "1K", "credits": ImagePricingConfig[ModelNanobanana]["1K"], "description": "1024x1024"},
-					{"size": "2K", "credits": ImagePricingConfig[ModelNanobanana]["2K"], "description": "2048x2048"},
-					{"size": "4K", "credits": ImagePricingConfig[ModelNanobanana]["4K"], "description": "4096x4096"},
-				},
-			},
-			{
-				"model":       ModelNanobanana2,
-				"model_name":  GetModelDisplayName(ModelNanobanana2),
-				"description": "基于 Gemini 3.1 Flash",
-				"prices": []gin.H{
-					{"size": "0.5K", "credits": ImagePricingConfig[ModelNanobanana2]["0.5K"], "description": "512x512"},
-					{"size": "1K", "credits": ImagePricingConfig[ModelNanobanana2]["1K"], "description": "1024x1024"},
-					{"size": "2K", "credits": ImagePricingConfig[ModelNanobanana2]["2K"], "description": "2048x2048"},
-					{"size": "4K", "credits": ImagePricingConfig[ModelNanobanana2]["4K"], "description": "4096x4096"},
-				},
-			},
-			{
-				"model":       ModelSeedream45,
-				"model_name":  GetModelDisplayName(ModelSeedream45),
-				"description": "火山引擎图像模型",
-				"prices": []gin.H{
-					{"size": "2K", "credits": ImagePricingConfig[ModelSeedream45]["2K"], "description": "2048x2048"},
-					{"size": "4K", "credits": ImagePricingConfig[ModelSeedream45]["4K"], "description": "4096x4096"},
-				},
-			},
-		},
+	imagePricing := []gin.H{
+		imagePricingEntry(ModelNanobanana, "Gemini 3 Pro image model", []gin.H{
+			{"size": "1K", "credits": ImagePricingConfig[ModelNanobanana]["1K"], "description": "1024x1024"},
+			{"size": "2K", "credits": ImagePricingConfig[ModelNanobanana]["2K"], "description": "2048x2048"},
+			{"size": "4K", "credits": ImagePricingConfig[ModelNanobanana]["4K"], "description": "4096x4096"},
+		}),
+		imagePricingEntry(ModelNanobanana2, "Gemini 3.1 Flash image model", []gin.H{
+			{"size": "0.5K", "credits": ImagePricingConfig[ModelNanobanana2]["0.5K"], "description": "512x512"},
+			{"size": "1K", "credits": ImagePricingConfig[ModelNanobanana2]["1K"], "description": "1024x1024"},
+			{"size": "2K", "credits": ImagePricingConfig[ModelNanobanana2]["2K"], "description": "2048x2048"},
+			{"size": "4K", "credits": ImagePricingConfig[ModelNanobanana2]["4K"], "description": "4096x4096"},
+		}),
+		imagePricingEntry(ModelSeedream45, "Volcengine Seedream image model", []gin.H{
+			{"size": "2K", "credits": ImagePricingConfig[ModelSeedream45]["2K"], "description": "2048x2048"},
+			{"size": "4K", "credits": ImagePricingConfig[ModelSeedream45]["4K"], "description": "4096x4096"},
+		}),
+		imagePricingEntry(ModelGPTImage2, "OpenAI image generation and editing", []gin.H{
+			{"size": "1K", "credits": ImagePricingConfig[ModelGPTImage2]["1K"], "description": "1024x1024"},
+			{"size": "2K", "credits": ImagePricingConfig[ModelGPTImage2]["2K"], "description": "1536x1024 / 1024x1536"},
+			{"size": "4K", "credits": ImagePricingConfig[ModelGPTImage2]["4K"], "description": "high quality"},
+		}),
+	}
+
+	enabledImagePricing := make([]gin.H, 0, len(imagePricing))
+	for _, entry := range imagePricing {
+		model, _ := entry["model"].(string)
+		if db.IsModelEnabled(model) {
+			enabledImagePricing = append(enabledImagePricing, entry)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"image": enabledImagePricing,
 		"video": gin.H{
 			"base_per_second":     VideoPricingConfig.BasePerSecond,
 			"audio_multiplier":    VideoPricingConfig.AudioMultiplier,
@@ -144,7 +143,14 @@ func GetPricing(c *gin.Context) {
 			"prices":     ImagePricingConfig[DefaultEcommerceModel],
 		},
 		"exchange_rate": "1=10",
-	}
+	})
+}
 
-	c.JSON(http.StatusOK, pricing)
+func imagePricingEntry(model, description string, prices []gin.H) gin.H {
+	return gin.H{
+		"model":       model,
+		"model_name":  GetModelDisplayName(model),
+		"description": description,
+		"prices":      prices,
+	}
 }
